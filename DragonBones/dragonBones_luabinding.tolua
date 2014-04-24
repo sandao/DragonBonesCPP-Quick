@@ -1,0 +1,285 @@
+$#include "BytesType.h"
+$#include "Armature.h"
+$#include "Animation.h"
+$#include "Frame.h"
+$#include "AnimationState.h"
+$#include "TimelineState.h"
+$#include "dbtinyxml2.h"
+$#include "Cocos2dxFactory.h"
+$#include "ITextureAtlas.h"
+$#include "Cocos2dxTextureAtlas.h"
+$#include "Slot.h"
+$#include "DBObject.h"
+$#include "DBTransform.h"
+$#include "Event.h"
+$#include "AnimationEvent.h"
+$#include "FrameEvent.h"
+$#include "SkeletonData.h"
+$#include "TextureAtlasData.h"
+$#include "AnimationData.h"
+
+$using namespace std;
+$using namespace dragonBones;
+
+typedef std::string String;
+typedef unsigned int uint;
+typedef float Number;
+class Object
+{
+public:
+    Object(){};
+    ~Object(){};
+};
+
+class Animation
+{
+public:    
+    String &getMovementID();
+    AnimationState *_lastAnimationState;
+    AnimationState *getLastAnimationState();
+    bool getIsPlaying();
+    bool getIsComplete();
+    Number getTimeScale();
+    void setTimeScale(Number value);
+    Animation(Armature *armature);
+    AnimationState* gotoAndPlay(
+        String &animationName, 
+        Number fadeInTime = -1, 
+        Number duration = -1, 
+        Number loop = NaN, 
+        uint layer = 0, 
+        String &group = "",
+        String &fadeOutMode = SAME_LAYER_AND_GROUP,
+        bool displayControl = true,
+        bool pauseFadeOut = true,
+        bool pauseFadeIn = true
+    );
+    void play();
+    void stop();
+    AnimationState* getState(String &name, uint layer = 0);
+    bool hasAnimation(String &animationName);
+    void advanceTime(Number passedTime);
+    void setActive(AnimationState *animationState, bool active);
+    uint addLayer(uint layer);
+    void addState(AnimationState *animationState);
+    void removeState(AnimationState *animationState);
+};
+
+class AnimationState
+{
+public:
+    static AnimationState* borrowObject();
+    static void returnObject(AnimationState * animationState);
+    static void clear();
+    String getName();
+    AnimationData *getClip();
+    int getLoopCount();
+    int getLoop();
+    
+    uint getLayer();
+    bool getIsPlaying();
+    bool getIsComplete();
+    
+    Number getFadeInTime();
+    Number getTotalTime();
+    
+    Number getCurrentTime();
+    void setCurrentTime(Number value);
+    
+    Number getTimeScale();
+    void setTimeScale(Number value);
+        
+    AnimationState();
+    
+    /** @private */
+    void fadeIn(Armature * armature, AnimationData * clip, Number fadeInTime, Number timeScale, int loop, uint layer, bool displayControl, bool pauseBeforeFadeInComplete);
+    
+    void fadeOut(Number fadeOutTime, bool pause = false);
+    void play();
+    void stop();
+    int getMixingTransform( String &timelineName);
+    void addMixingTransform( String &timelineName, int type = 2, bool recursive = true);
+    void removeMixingTransform( String &timelineName = "", bool recursive = true);
+    bool advanceTime(Number passedTime);
+    void updateTimelineStates();
+    void addTimelineState( String &timelineName);
+    void removeTimelineState( String &timelineName);
+    void clearAll();
+};
+class Armature : public IAnimatable , public EventDispatcher
+{
+public:
+    Object* getDisplay();
+    CCNode* getDisplayNode();
+    Animation* getAnimation();
+    Armature(Object *display);
+    ~Armature();
+    void dispose();
+    void invalidUpdate();
+    void advanceTime(Number passedTime);
+    Slot* getSlot(String &slotName);
+    Slot* getSlotByDisplay(Object *display);
+    void removeSlot(Slot *slot);
+    void removeSlotByName(String &slotName);
+    Bone* getBone(String &boneName);
+    Bone* getBoneByDisplay(Object *display);
+    void removeBone(Bone * bone);
+    void removeBoneByName(String &boneName);
+    void addChild(DBObject *object, String &parentName = "");
+    void addBone(Bone * bone, String &parentName = "");
+    void updateSlotsZOrder();
+    void addDBObject(DBObject *object);
+    void removeDBObject(DBObject * object);
+    void arriveAtFrame(Frame * frame, TimelineState *timelineState, AnimationState *animationState, bool isCross);
+    static bool sortSlot(Slot *slot1, Slot *slot2);
+    void registerScriptHandler(LUA_FUNCTION nFunID,String nScriptEventType);
+    void unregisterScriptHandler(String nScriptEventType);
+    int  getScriptHandler(String nScriptEventType);
+};
+
+class Bone : public DBObject
+{
+public: 
+    Armature* getChildArmature();
+    Object* getDisplay();
+    CCNode* getDisplayNode();
+    void setDisplay(Object *value);
+    String displayController;
+    void setVisible(bool value);
+    Bone();
+    ~Bone();
+};
+class DBObject
+{    
+public:
+    DBObject();
+    ~DBObject();
+    DBTransform* getOffset();
+    void setVisible(bool visible);
+    bool getVisible();
+    Armature* getArmature();
+    void setArmature(Armature *value);
+};
+class Slot : public DBObject
+{
+public:        
+    Number getZOrder();
+    void setZOrder(Number value);
+    String getBlendMode();
+    void setBlendMode(String &value);
+    Object *getDisplay();
+    void setDisplayValue(Object *value);
+    Armature *getChildArmature();
+    void setChildArmature(Armature *value);        
+    void setDisplay(Object *display);
+    void changeDisplay(int displayIndex);
+    void setVisible(bool value);        
+    ~Slot();
+    void updateVisible(bool value);
+    void updateChildArmatureAnimation();
+};
+
+enum Whitespace {
+    PRESERVE_WHITESPACE,
+    COLLAPSE_WHITESPACE
+};
+enum XMLError {
+    XML_NO_ERROR = 0,
+    XML_SUCCESS = 0,
+
+    XML_NO_ATTRIBUTE,
+    XML_WRONG_ATTRIBUTE_TYPE,
+
+    XML_ERROR_FILE_NOT_FOUND,
+    XML_ERROR_FILE_COULD_NOT_BE_OPENED,
+    XML_ERROR_FILE_READ_ERROR,
+    XML_ERROR_ELEMENT_MISMATCH,
+    XML_ERROR_PARSING_ELEMENT,
+    XML_ERROR_PARSING_ATTRIBUTE,
+    XML_ERROR_IDENTIFYING_TAG,
+    XML_ERROR_PARSING_TEXT,
+    XML_ERROR_PARSING_CDATA,
+    XML_ERROR_PARSING_COMMENT,
+    XML_ERROR_PARSING_DECLARATION,
+    XML_ERROR_PARSING_UNKNOWN,
+    XML_ERROR_EMPTY_DOCUMENT,
+    XML_ERROR_MISMATCHED_ELEMENT,
+    XML_ERROR_PARSING,
+
+    XML_CAN_NOT_CONVERT_TEXT,
+    XML_NO_TEXT_NODE
+};
+
+class CocosNode : public Object
+{
+public:
+    CocosNode(CCNode *n);
+    ~CocosNode();
+    CCNode* getNode();
+};
+class Cocos2dxFactory : public BaseFactory
+{
+public:
+    static Cocos2dxFactory* GetInstance();
+    Cocos2dxFactory();
+    ~Cocos2dxFactory();
+    void loadSkeletonFile(String &skeletonFile , String &name  = "");
+    void loadTextureAtlasFile(String &textureAtlasFile , String &name  = "");
+    SkeletonData* getSkeletonData( String &name);
+    void addSkeletonData(SkeletonData *data,  String &name = "");
+    void removeSkeletonData( String &name);
+    ITextureAtlas* getTextureAtlas( String &name);
+    void addTextureAtlas(ITextureAtlas *textureAtlas,  String &name = "");
+    void removeTextureAtlas( String &name);
+    void dispose(bool disposeData = true);
+    Armature* buildArmature( String &armatureName,  String &animationName = "",  String &skeletonName = "",  String &textureAtlasName = "",  String &skinName = "");
+    Object* getTextureDisplay( String &textureName,  String &textureAtlasName = "", Number pivotX = NaN, Number pivotY = NaN);
+    ITextureAtlas* generateTextureAtlas(Object *content, TextureAtlasData *textureAtlasRawData);
+    Armature* generateArmature();
+    Slot* generateSlot();
+    Object* generateDisplay(ITextureAtlas *textureAtlas, String &fullName, Number pivotX, Number pivotY);
+};
+class Cocos2dxTextureAtlas : public ITextureAtlas
+{
+public:
+    static Cocos2dxTextureAtlas* create(TextureAtlasData *data);
+    Cocos2dxTextureAtlas(TextureAtlasData *data);
+    ~Cocos2dxTextureAtlas();
+    String &getName();
+};
+
+class DBTransform
+{
+public:
+    Number getPositionX();
+    void setPositionX(Number xx);
+    Number getPositionY();
+    void setPositionY(Number yy);
+    Number getScaleX();
+    void setScaleX(Number sx);
+    Number getScaleY();
+    void setScaleY(Number sy);
+    Number getRotation();
+    void setRotation(Number value);
+    DBTransform();
+    DBTransform(const DBTransform & transform);
+    String toString();
+};
+class Event : public cocos2d::CCObject
+{
+public:
+    String &getType();
+};
+class AnimationEvent : public Event
+{
+public:
+    String &getMovementID();    
+};
+class FrameEvent : public Event
+{
+public:
+    String getFrameLabel();
+    Bone* getBone();
+    Armature* getArmture();
+    AnimationState* getAnimationState();
+};
